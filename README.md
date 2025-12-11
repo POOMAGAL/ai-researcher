@@ -76,18 +76,10 @@ bashpip install -r requirements.txt
 This will take 2-3 minutes. You'll see packages being installed.
 
 🔐 Step 4: Configure API Keys
-Create .env File
-Create a file named .env in your project folder:
-bash# On Mac/Linux:
-cat > .env << 'EOF'
-GOOGLE_API_KEY=your_gemini_key_here
-TAVILY_API_KEY=your_tavily_key_here
-EOF
 
-# On Windows (or manually create the file):
 # Create a file named .env and add the lines above
 Add Your Real Keys
-Edit the .env file and replace with your actual keys:
+create the .env file and replace with your actual keys:
 GOOGLE_API_KEY=AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TAVILY_API_KEY=tvly-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Important:
