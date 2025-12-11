@@ -1,0 +1,24 @@
+# Multi-Agent AI Deep Researcher with Google Gemini (FREE)
+# Install: pip install -r requirements.txt
+
+# Core Framework
+streamlit==1.31.0
+
+# LangChain & LangGraph
+langchain==0.1.20
+langchain-google-genai==1.0.1
+langchain-core==0.1.52
+langgraph==0.0.40
+
+# Google Gemini
+google-generativeai==0.3.2
+
+# Search API
+tavily-python==0.3.3
+
+# Utilities
+python-dotenv==1.0.0
+groq>=0.5.0
+# Optional: For enhanced functionality
+# requests==2.31.0
+# beautifulsoup4==4.12.3
