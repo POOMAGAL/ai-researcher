@@ -821,10 +821,10 @@ with st.sidebar:
     col3.metric("🎯 Citations", len(st.session_state.citations))
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("📦", db_stats['total_chunks'])
-    col2.metric("💾", f"{db_stats['total_size_mb']}M")
-    col3.metric("📏", db_stats['avg_chunk_length'])
-    col4.metric("🔢", db_stats['dimensions'])
+    col1.metric("📦 Chunks", f"{db_stats['total_chunks']:,}")
+    col2.metric("💾 Size", f"{db_stats['total_size_mb']} MB")
+    col3.metric("📏 Avg Chunk", f"{db_stats['avg_chunk_length']} chars")
+    col4.metric("🔢 Dimensions", db_stats['dimensions'])
 
     st.info(api_status)
     
