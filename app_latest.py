@@ -41,17 +41,10 @@ from pypdf import PdfReader
 
 load_dotenv()
 
-# # Page config
-# st.set_page_config(
-#     page_title="AI Deep Researcher - Advanced",
-#     page_icon="🧠",
-#     layout="wide",
-#     initial_sidebar_state="expanded"
-# )
 
 # Page config
 st.set_page_config(
-    page_title="AI Deep Researcher - Advanced",
+    page_title="MAAD Researcher",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -96,7 +89,68 @@ if 'search_history' not in st.session_state:
 if 'selected_history_id' not in st.session_state:
     st.session_state.selected_history_id = None
 
+if 'plagiarism_active' not in st.session_state:
+    st.session_state.plagiarism_active = False
+if 'plagiarism_result' not in st.session_state:
+    st.session_state.plagiarism_result = None
 
+
+
+import requests
+
+# ===== WINSTON AI PLAGIARISM CHECKER =====
+def check_plagiarism(text: str, api_key: str) -> dict:
+    """Check plagiarism using Winston AI API"""
+    url = "https://api.gowinston.ai/v2/plagiarism"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "text": text,
+        "type": "ORIGINALITY"
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"API Error: {response.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+@st.cache_data(ttl=3600)  # Cache 1 hour
+def analyze_plagiarism_result(result: dict, word_count: int) -> str:
+    """Format plagiarism result"""
+    if 'error' in result:
+        return f"❌ Error: {result['error']}"
+    
+    ai_score = result.get('ai_score', 0) * 100
+    human_score = 100 - ai_score
+    
+    if word_count > 500:
+        return """
+## 🚫 Premium Required
+
+**Word Count**: {word_count:,} words
+
+**Upgrade to Winston AI Premium** for documents > 500 words.
+
+[Get Premium →](https://gowinston.ai/pricing)
+        """.format(word_count=word_count)
+    
+    return f"""
+## ✅ Plagiarism Analysis Complete
+
+**Word Count**: {word_count:,} words
+
+**🤖 Plagiarism**: {ai_score:.1f}%
+**👤 Original Content**: {human_score:.1f}%
+
+**Verdict**: {'🟢 Original' if ai_score < 20 else '🟡 Mixed' if ai_score < 50 else '🔴 Likely AI'}
+
+    """
 
 
 # ===== FIXED EXPORT FUNCTIONS (Replace lines 60-140) =====
@@ -156,25 +210,52 @@ def export_to_pptx(content: str, title: str):
     return buffer.getvalue()
 
 
-# Initialize LLM and tools
+# Initialize LLM and tools + Winston AI
 @st.cache_resource
 def init_tools():
-    """Initialize Groq LLM and Tavily search"""
+    """Initialize Groq LLM, Tavily, and Winston AI"""
+    # Groq LLM
     llm = ChatGroq(
         model="llama-3.3-70b-versatile",
         groq_api_key=os.getenv("GROQ_API_KEY"),
         temperature=0.7,
         max_tokens=2000
     )
+    
+    # Tavily Search
     tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-    return llm, tavily
+    
+    # Winston AI Key (validate)
+    winston_api_key = os.getenv("WINSTON_API_KEY")
+    
+    return llm, tavily, winston_api_key
 
 try:
-    llm, tavily_client = init_tools()
-    api_status = "✅ APIs Connected"
+    llm, tavily_client, winston_api_key = init_tools()
+    
+    # Check all APIs
+    api_checks = []
+    if os.getenv("GROQ_API_KEY"):
+        api_checks.append("✅ Groq")
+    else:
+        api_checks.append("❌ Groq")
+    
+    if os.getenv("TAVILY_API_KEY"):
+        api_checks.append("✅ Tavily")
+    else:
+        api_checks.append("❌ Tavily")
+    
+    if os.getenv("WINSTON_API_KEY"):
+        api_checks.append("✅ Winston AI")
+    else:
+        api_checks.append("⚠ Winston AI")
+    
+    api_status = " | ".join(api_checks)
+    
 except Exception as e:
     st.error(f"❌ API Connection Error: {str(e)}")
     st.stop()
+
 
 # Initialize embeddings for RAG
 @st.cache_resource
@@ -798,9 +879,9 @@ def create_agent_visualization():
 
 # ============= STREAMLIT UI =============
 
-st.title("🧠 Multi-Agent AI Deep Researcher - Advanced")
+st.title("🧠 MAAD Researcher")
 
-st.markdown("*Features: RAG • PDF Upload • Citations • Agent Visualization*")
+st.markdown("*Multi-Agent AI Deep(MAAD): RAG • PDF Upload • Citations • Agent Visualization*")
 
 st.markdown("---")
 
@@ -820,11 +901,11 @@ with st.sidebar:
     col2.metric("📄 Docs", len(st.session_state.uploaded_docs))
     col3.metric("🎯 Citations", len(st.session_state.citations))
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2 = st.columns(2)
     col1.metric("📦 Chunks", f"{db_stats['total_chunks']:,}")
     col2.metric("💾 Size", f"{db_stats['total_size_mb']} MB")
-    col3.metric("📏 Avg Chunk", f"{db_stats['avg_chunk_length']} chars")
-    col4.metric("🔢 Dimensions", db_stats['dimensions'])
+    # col3.metric("📏 Avg Chunk", f"{db_stats['avg_chunk_length']} chars")
+    # col4.metric("🔢 Dimensions", db_stats['dimensions'])
 
     st.info(api_status)
     
@@ -1029,7 +1110,7 @@ if st.session_state.results:
     with col1:
         st.metric("Web Sources", len(results.get('search_results', [])))
     with col2:
-        st.metric("RAG Sources", len(results.get('rag_results', [])))
+        st.metric("Chunks Retrieved", len(results.get('rag_results', [])))
     with col3:
         confidence = results.get('analysis', {}).get('confidence_level', 'medium')
         st.metric("Confidence", confidence.title())
@@ -1139,15 +1220,77 @@ if st.session_state.results:
     st.markdown("---")
     
     # # Executive Summary
-    # st.subheader("📝 Executive Summary")
-    # st.markdown(results.get('final_report', ''))
-    
-    # st.markdown("---")
     # COLLAPSIBLE EXECUTIVE SUMMARY
     with st.expander("📝 Executive Summary", expanded=True):
         st.markdown(results.get('final_report', ''))
 
     st.markdown("---")
+
+    # ===== PLAGIARISM CHECKER =====
+    st.markdown("---")
+    st.subheader("🔍 Plagiarism Checker")
+
+    col_btn1, col_btn2 = st.columns([3, 1])
+
+    with col_btn1:
+        if st.button("🚀 Check Plagiarism", type="secondary", use_container_width=True):
+            st.session_state.plagiarism_active = True
+
+    with col_btn2:
+        st.caption("Powered by Winston AI")
+
+    if st.session_state.get('plagiarism_active', False):
+        st.markdown("---")
+        
+        # Text input
+        plagiarism_text = st.text_area(
+            "Paste content to check:",
+            height=200,
+            placeholder="Paste your text here... (Max 500 words free)",
+            help="Winston AI checks AI-generated content vs human writing"
+        )
+        
+        word_count = len(plagiarism_text.split())
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Words", f"{word_count:,}")
+        
+        if st.button("✅ Analyze Now", type="primary"):
+            if word_count == 0:
+                st.warning("Please paste some text first!")
+            elif word_count > 500:
+                st.error("""
+    ## 🚫 Premium Required
+
+    **Detected**: {word_count:,} words
+
+    **Free limit**: 500 words  
+    **Upgrade**: [Winston AI Premium](https://gowinston.ai/pricing)
+
+    **Why?** Large documents require paid API access.
+                """.format(word_count=word_count))
+            else:
+                with st.spinner("Analyzing with Winston AI..."):
+                    result = check_plagiarism(plagiarism_text, winston_api_key)
+                    # st.json(result)
+                    analysis = analyze_plagiarism_result(result, word_count)
+                    st.markdown(analysis)
+                    
+                    # Results storage
+                    st.session_state.plagiarism_result = {
+                        'text': plagiarism_text,
+                        'word_count': word_count,
+                        'result': result,
+                        'timestamp': datetime.now().strftime('%H:%M')
+                    }
+        
+        # Show last result
+        if st.session_state.get('plagiarism_result'):
+            with st.expander("📋 Last Check", expanded=False):
+                last = st.session_state.plagiarism_result
+                st.info(f"**{last['word_count']:,} words** • {last['timestamp']}")
+
 
     # HISTORY TAB
     tab1, tab2 = st.tabs(["📊 Current Results", "📚 Past Searches"])
@@ -1234,7 +1377,7 @@ if st.session_state.results:
         {first_para}
 
         ---
-        AI Deep Researcher | {datetime.now().strftime('%Y-%m-%d %H:%M')}"""
+        MAAD Researcher | {datetime.now().strftime('%Y-%m-%d %H:%M')}"""
             
             export_title = f"Exec-Summary-{query[:25]}"
 
